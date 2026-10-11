@@ -1,96 +1,71 @@
-# Predicting-Hospital-Readmission-of-Diabetic-Patient
-Problem
+# Predicting Hospital Readmission of Diabetic Patients
 
-Hospital readmissions within 30 days of discharge are a major concern for healthcare systems. High readmission rates often indicate gaps in patient care and lead to increased healthcare costs and financial penalties for hospitals.
+**Author:** Suryansh Mishra · [GitHub](https://github.com/Suryansh2111) · [LinkedIn](https://www.linkedin.com/in/suryansh-mishra-bb3879339/)
 
-Diabetic patients are particularly vulnerable to complications that may result in repeated hospital visits. Being able to predict which patients are likely to be readmitted allows hospitals to intervene early through follow-ups, medication adjustments, or additional care.
+## Problem
 
-The goal of this project is to build a machine learning model that predicts the likelihood of a diabetic patient being readmitted within 30 days after discharge.
+Hospitals are penalized under Medicare's Hospital Readmissions Reduction Program when too many patients return within 30 days of discharge. Diabetic patients are especially at risk. This project builds a model that ranks diabetic patients by their risk of 30-day readmission, so care teams can follow up with the highest-risk patients before and after discharge.
 
-Dataset
+## Data
 
-The project uses the Diabetes 130-US Hospitals dataset from the UCI Machine Learning Repository.
+[Diabetes 130-US Hospitals (1999-2008)](https://archive.ics.uci.edu/dataset/296/diabetes+130-us+hospitals+for+years+1999-2008), UCI Machine Learning Repository: 101,766 encounters, 50 features.
 
-Dataset highlights:
+Target: `readmitted` = 1 if readmitted within 30 days, 0 otherwise (no readmission, or after 30 days).
 
-101,766 patient records
+## Approach
 
-50 clinical and demographic features
+**Cleaning**
+- Dropped columns that are mostly missing (`weight`, `payer_code`, `medical_specialty`) or constant (`citoglipton`, `examide`).
+- Removed rows with missing race or diagnosis codes and unknown gender.
+- Removed patients who died (discharge code 11), since they cannot be readmitted.
+- Kept one encounter per patient (67,580 patients) so no patient appears in both training and test data.
 
-Data collected from 130 US hospitals (1999–2008)
+**Feature engineering**
+- `patient_visit` = prior outpatient + emergency + inpatient visits.
+- Grouped hundreds of ICD-9 diagnosis codes into 9 clinical categories.
+- Merged similar admission and discharge codes; encoded medication changes (No / Steady / Down / Up).
+- Removed collinear features using variance inflation factor (VIF).
 
-Features include patient demographics, admission details, lab results, number of procedures, diagnoses, and medication changes.
+**Modeling**
+- Stratified 80/20 train/test split; the test set keeps the real 9.1% readmission rate.
+- Identifier columns removed before modeling.
+- Imbalance handled with class weights; compared against SMOTE applied to the training split only.
+- Models: Decision Tree, Logistic Regression, Random Forest.
+- Evaluated with ROC-AUC, PR-AUC, recall and precision for the readmitted class, and lift at capacity-based thresholds.
 
-The target variable was converted into a binary classification problem:
+## Results (test set, real 9.1% readmission rate)
 
-1 → Readmitted within 30 days
+| Model | ROC-AUC | PR-AUC | Recall (readmit) | Precision (readmit) |
+| --- | --- | --- | --- | --- |
+| Random Forest | **0.630** | **0.150** | 0.396 | 0.146 |
+| Decision Tree | 0.620 | 0.135 | 0.488 | 0.134 |
+| Logistic Regression | 0.592 | 0.122 | 0.537 | 0.116 |
 
-0 → No readmission or readmission after 30 days
+A random model's PR-AUC is 0.091.
 
-Approach
+**Using it in practice:** flagging the top 20% highest-risk patients catches **34%** of 30-day readmissions at **1.7x** the base rate. The top 10% gives about **2x** lift.
 
-An end-to-end machine learning pipeline was developed.
+**Top drivers** (permutation importance): discharge disposition, prior hospital visits, number of diagnoses, age.
 
-Data Preparation
+**SMOTE vs class weights:** SMOTE lowered ROC-AUC from 0.63 to 0.51. Interpolating label-encoded categories (diagnosis group, discharge code) creates values that never occur in real data, so the model learns to spot synthetic patients. Class weights avoid this.
 
-Removed columns with high missing values
+## Business impact
 
-Cleaned corrupted entries and duplicates
+The model gives care coordinators a ranked list of patients at discharge. With capacity to follow up on 20% of discharges, they would reach about a third of the patients who would otherwise be readmitted, through follow-up calls, medication review and early clinic visits.
 
-Removed deceased patients (readmission not possible)
+## Next steps
 
-Feature Engineering
+- One-hot encode categorical features and add gradient boosting (XGBoost / LightGBM) with tuning.
+- Use all encounters with group-aware cross-validation by patient.
+- Add SHAP explanations for patient-level reasons.
 
-Created a patient_visit feature combining inpatient, outpatient, and emergency visits
+## Note on earlier versions
 
-Grouped hundreds of ICD-9 diagnosis codes into 9 major disease categories
+An earlier version of this notebook reported about 90% accuracy. That came from applying SMOTE before the train/test split and testing on balanced data. The current notebook fixes this, and the results above are the valid ones.
 
-Encoded categorical variables such as gender, age, and medication changes
+## Files
 
-Handling Class Imbalance
+- `Hospital_Readmission_of_Diabetic_Patient.ipynb`: full analysis
+- `diabetic_data.csv`, `IDs_mapping.csv`: data from UCI
 
-Since the dataset contained more non-readmitted patients, SMOTE was used to balance the classes.
-
-Models Implemented
-
-Three models were trained and evaluated:
-
-Decision Tree
-
-Logistic Regression
-
-Random Forest
-
-Model Performance
-Model	Accuracy	Precision	Recall	F1 Score
-Decision Tree	78%	0.77	0.76	0.76
-Logistic Regression	73%	0.72	0.71	0.71
-Random Forest	84%	0.83	0.82	0.82
-
-The Random Forest model achieved the best performance, effectively identifying patients at risk of early readmission.
-
-Key Insights
-
-Exploratory analysis showed that readmission risk increases for patients with:
-
-Multiple diagnoses
-
-Longer hospital stays
-
-Frequent prior hospital visits
-
-Certain medication adjustments
-
-Business Impact
-
-This predictive model can help hospitals:
-
-Identify high-risk patients before discharge
-
-Improve post-care monitoring and follow-ups
-
-Reduce costly hospital readmissions
-
-Support data-driven healthcare decision making
-
-By proactively identifying at-risk patients, healthcare providers can improve patient outcomes while reducing operational costs.
+**Tools:** Python, pandas, scikit-learn, imbalanced-learn, statsmodels, seaborn
